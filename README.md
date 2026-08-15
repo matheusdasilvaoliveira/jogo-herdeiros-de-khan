@@ -24,7 +24,7 @@ O projeto foi modelado para aplicar os conceitos fundamentais de Orientação a 
 *(Instruções a serem adicionadas conforme o avanço das iterações do projeto)*
 
 ## 👨‍💻 Autor
-**Cristiano**
+**Cristiano Ferreira De Mattos**
 
 **Felipe**
 
