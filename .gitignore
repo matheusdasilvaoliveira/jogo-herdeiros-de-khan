@@ -1,0 +1,17 @@
+# Eclipse metadata & workspace
+.metadata/
+.recommenders/
+.loadpath
+
+# Build & class files
+bin/
+*.class
+
+# Logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS specific files
+.DS_Store
+Thumbs.db
