@@ -1,11 +1,12 @@
 package br.herdeiros.view;
 
-import br.herdeiros.model.Cor;
-import br.herdeiros.model.Partida;
+import br.herdeiros.controller.JogoController;
+import br.herdeiros.observer.IndicesEstado;
+import br.herdeiros.observer.ObservadoIF;
+import br.herdeiros.observer.ObservadorIF;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -13,8 +14,11 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,21 +33,27 @@ import javax.swing.border.EmptyBorder;
  * Janela própria para exibição das cartas secretas em posse do jogador da vez (Figura 5).
  * Desenho OBRIGATORIAMENTE via Java2D (Graphics2D.drawImage).
  * Sem lambdas em listeners.
+ *
+ * Observadora do Model: sua exibição (EXIBIR_CARTAS) e seu conteúdo (cartas do
+ * jogador da vez) são resgatados por get(i) ao receber notify.
  */
-public class JanelaCartas extends JFrame {
+public class JanelaCartas extends JFrame implements ObservadorIF {
 
-    private Partida partida;
     private JLabel lblJogador;
     private PainelExibicaoCartas painelExibicao;
     private static final Map<String, Image> CACHE_CARTAS = new HashMap<String, Image>();
 
-    public JanelaCartas(Partida partida) {
-        this.partida = partida;
-
+    public JanelaCartas() {
         setTitle("Herdeiros de Khan - Minhas Cartas (Conselheiros)");
         setSize(860, 620);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                JogoController.getInstance().fecharCartas();
+            }
+        });
 
         JPanel painelPrincipal = new JPanel(new BorderLayout(10, 10));
         painelPrincipal.setBackground(new Color(245, 245, 250));
@@ -65,7 +75,7 @@ public class JanelaCartas extends JFrame {
         btnFechar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JanelaCartas.this.dispose();
+                JogoController.getInstance().fecharCartas();
             }
         });
 
@@ -77,15 +87,33 @@ public class JanelaCartas extends JFrame {
         painelPrincipal.add(painelExibicao, BorderLayout.CENTER);
 
         add(painelPrincipal);
-        sincronizarComJogadorDaVez();
+        JogoController.getInstance().registra(this);
     }
 
-    public void sincronizarComJogadorDaVez() {
-        if (partida == null) return;
-        Cor corVez = partida.getCorJogadorAtual();
-        String nome = partida.getNomeJogadorAtual();
-        lblJogador.setText("Cartas Secretas de: " + nome + " (" + corVez + ")");
-        painelExibicao.atualizar(partida.getCartasJogadorAtual());
+    @Override
+    public void notify(ObservadoIF o) {
+        JogoController ctrl = JogoController.getInstance();
+        int vez = o.get(IndicesEstado.JOGADOR_DA_VEZ);
+        List<String> cartas = new ArrayList<String>();
+        if (vez >= 0) {
+            String nome = ctrl.getNomeJogador(vez);
+            String cor = ctrl.getNomeCor(o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_COR)));
+            lblJogador.setText("Cartas Secretas de: " + nome + " (" + cor + ")");
+            int qtd = o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_QTD_CARTAS));
+            for (int k = 0; k < qtd; k++) {
+                int codigo = o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_CARTA_0 + k));
+                cartas.add(IndicesEstado.decodificarCarta(codigo));
+            }
+        }
+        painelExibicao.atualizar(cartas);
+
+        boolean exibir = o.get(IndicesEstado.EXIBIR_CARTAS) == 1;
+        if (exibir && !isVisible()) {
+            setVisible(true);
+            toFront();
+        } else if (!exibir && isVisible()) {
+            setVisible(false);
+        }
     }
 
     private Image carregarImagemCarta(String idCarta) {

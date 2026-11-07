@@ -5,7 +5,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-class Jogador {
+class Jogador implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String nome;
     private Cor cor;
     private Peao meuPeao;

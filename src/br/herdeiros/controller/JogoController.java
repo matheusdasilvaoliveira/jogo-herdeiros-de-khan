@@ -1,150 +1,208 @@
 package br.herdeiros.controller;
 
 import br.herdeiros.model.Partida;
+import br.herdeiros.observer.ObservadorIF;
+import br.herdeiros.view.JanelaEscolhaPersonagens;
+import br.herdeiros.view.JanelaMenuInicial;
 import br.herdeiros.view.JanelaPrincipal;
-import br.herdeiros.view.MapaCoordenadas;
-import br.herdeiros.view.PainelTabuleiro;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.util.List;
+import javax.swing.JOptionPane;
 
 /**
- * Controlador da aplicação (Controller do MVC).
- * Intermedia as ações do jogador entre a View e o componente Model (Partida).
+ * Controlador da aplicação (Controller do MVC) - Singleton.
+ *
+ * Único responsável por organizar a sequência de eventos da partida:
+ * menu inicial -> escolha de personagens -> partida (ou carregar jogo salvo).
+ * A View aciona as regras chamando JogoController.getInstance().xxx(), e o Controller
+ * repassa para a fachada do Model (Partida.getInstance()). As Views se registram como
+ * observadoras do Model exclusivamente através de {@link #registra(ObservadorIF)}.
+ *
  * SEM uso de expressões lambda em listeners (regra obrigatória da disciplina).
  */
 public class JogoController {
 
-    private Partida partida;
-    private JanelaPrincipal view;
-    private int movimentosRestantes = 0;
+    private static final String ARQUIVO_SALVO = "partida_salva.dat";
 
-    public JogoController(Partida partida, JanelaPrincipal view) {
-        this.partida = partida;
-        this.view = view;
+    private static JogoController instancia;
 
-        configurarOuvintes();
-        atualizarInterface();
+    private JanelaPrincipal janelaPrincipal;
+
+    private JogoController() {
     }
 
-    private void configurarOuvintes() {
-        // 1. Ouvinte de cliques no tabuleiro (movimentação para parada/cidade vizinha)
-        this.view.getPainelTabuleiro().setOuvinteClique(new PainelTabuleiro.OuvinteCliqueTabuleiro() {
-            @Override
-            public void aoClicarNoTabuleiro(int x, int y) {
-                processarCliqueNoTabuleiro(x, y);
-            }
-        });
-
-        // 2. Ouvinte do botão Encerrar Turno (passa a vez para o próximo jogador)
-        this.view.getPainelControle().getBtnEncerrarTurno().addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                encerrarTurnoAtual();
-            }
-        });
-
-        // 3. Ouvinte do modo testador (define os movimentos / cavalos disponíveis)
-        this.view.getPainelControle().getBtnDefinirMovimentos().addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                definirMovimentosTestador();
-            }
-        });
-
-        // 4. Ouvinte para abrir a Janela de Cartelas dos Herdeiros
-        this.view.getPainelControle().getBtnVerCartelas().addActionListener(new ActionListener() {
-            private br.herdeiros.view.JanelaCartelas janelaCartelas;
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (janelaCartelas == null || !janelaCartelas.isDisplayable()) {
-                    janelaCartelas = new br.herdeiros.view.JanelaCartelas(partida);
-                }
-                janelaCartelas.sincronizarComJogadorDaVez();
-                janelaCartelas.setVisible(true);
-                janelaCartelas.toFront();
-            }
-        });
-
-        // 4.1 Ouvinte para abrir a Janela de Cartas Secretas dos Jogadores (Figura 5 do professor)
-        this.view.getPainelControle().getBtnVerCartas().addActionListener(new ActionListener() {
-            private br.herdeiros.view.JanelaCartas janelaCartas;
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (janelaCartas == null || !janelaCartas.isDisplayable()) {
-                    janelaCartas = new br.herdeiros.view.JanelaCartas(partida);
-                }
-                janelaCartas.sincronizarComJogadorDaVez();
-                janelaCartas.setVisible(true);
-                janelaCartas.toFront();
-            }
-        });
-
-        // 5. Ouvinte para abrir a Janela de Inventário de Recursos
-        this.view.getPainelControle().getBtnVerInventario().addActionListener(new ActionListener() {
-            private br.herdeiros.view.JanelaInventario janelaInventario;
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (janelaInventario == null || !janelaInventario.isDisplayable()) {
-                    janelaInventario = new br.herdeiros.view.JanelaInventario(partida);
-                }
-                janelaInventario.atualizarInventario();
-                janelaInventario.setVisible(true);
-                janelaInventario.toFront();
-            }
-        });
+    public static synchronized JogoController getInstance() {
+        if (instancia == null) {
+            instancia = new JogoController();
+        }
+        return instancia;
     }
 
-    private void processarCliqueNoTabuleiro(int x, int y) {
-        if (movimentosRestantes <= 0) {
-            System.out.println("[DEBUG] Clique ignorado: defina movimentos no Modo Testador primeiro!");
-            return;
-        }
+    private Partida model() {
+        return Partida.getInstance();
+    }
 
-        int largura = view.getPainelTabuleiro().getWidth();
-        int altura = view.getPainelTabuleiro().getHeight();
+    // ------------------------------------------------------------------
+    // Observer: registro dos observadores (Views) no observado (Model)
+    // ------------------------------------------------------------------
 
-        String destino = MapaCoordenadas.identificarLocalizacaoClicada(x, y, largura, altura);
-        if (destino == null) {
-            System.out.println("[DEBUG] Nenhuma localidade reconhecida perto do clique (" + x + ", " + y + ").");
-            return;
-        }
+    public void registra(ObservadorIF o) {
+        model().add(o);
+        // Sincroniza imediatamente o observador recém-registrado com o estado atual
+        o.notify(model());
+    }
 
-        String origem = partida.getLocalizacaoJogador(partida.getCorJogadorAtual());
-        if (origem == null || origem.equalsIgnoreCase(destino)) {
-            return;
-        }
+    public void remove(ObservadorIF o) {
+        model().remove(o);
+    }
 
-        int distancia = partida.calcularDistancia(origem, destino);
-        System.out.println("[DEBUG] Tentando mover de " + origem + " para " + destino + ". Distancia no grafo: " + distancia + " (Movimentos disponiveis: " + movimentosRestantes + ")");
+    // ------------------------------------------------------------------
+    // Sequência de eventos da aplicação
+    // ------------------------------------------------------------------
 
-        if (distancia > 0 && distancia <= movimentosRestantes) {
-            boolean moveu = partida.moverJogadorAtual(destino);
-            if (moveu) {
-                movimentosRestantes -= distancia;
-                atualizarInterface();
+    public void iniciar() {
+        abrirMenuInicial();
+    }
+
+    private void abrirMenuInicial() {
+        final JanelaMenuInicial[] refMenu = new JanelaMenuInicial[1];
+        refMenu[0] = new JanelaMenuInicial(new JanelaMenuInicial.OuvinteMenuInicial() {
+            @Override
+            public void aoIniciarNovoJogo() {
+                refMenu[0].dispose();
+                abrirEscolhaPersonagens();
             }
-        } else {
-            // Movimento inválido ou passos insuficientes: a regra exige silêncio total
+
+            @Override
+            public void aoContinuarJogoSalvo() {
+                if (model().carregar(ARQUIVO_SALVO)) {
+                    refMenu[0].dispose();
+                    abrirJanelaPrincipal();
+                } else {
+                    JOptionPane.showMessageDialog(refMenu[0],
+                            "Nenhuma partida salva foi encontrada.",
+                            "Continuar Jogo Salvo", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        });
+        refMenu[0].exibir();
+    }
+
+    private void abrirEscolhaPersonagens() {
+        final JanelaEscolhaPersonagens[] refEscolha = new JanelaEscolhaPersonagens[1];
+        refEscolha[0] = new JanelaEscolhaPersonagens(new JanelaEscolhaPersonagens.OuvinteConfiguracaoJogo() {
+            @Override
+            public void aoConfirmarConfiguracao(List<JanelaEscolhaPersonagens.DadosJogadorConfig> jogadores) {
+                refEscolha[0].dispose();
+                novaPartida(jogadores);
+            }
+
+            @Override
+            public void aoVoltarMenu() {
+                refEscolha[0].dispose();
+                abrirMenuInicial();
+            }
+        });
+        refEscolha[0].exibir();
+    }
+
+    private void novaPartida(List<JanelaEscolhaPersonagens.DadosJogadorConfig> configs) {
+        Partida p = model();
+        p.reiniciar();
+        for (JanelaEscolhaPersonagens.DadosJogadorConfig cfg : configs) {
+            p.adicionarJogador(cfg.nome, cfg.cor, cfg.descendentes);
+        }
+        // Regra oficial: o jogador com o maior número de descendentes começa
+        p.definirPrimeiroJogadorPorDescendentes();
+        abrirJanelaPrincipal();
+    }
+
+    private void abrirJanelaPrincipal() {
+        if (janelaPrincipal == null) {
+            janelaPrincipal = new JanelaPrincipal();
+        }
+        janelaPrincipal.exibir();
+    }
+
+    // ------------------------------------------------------------------
+    // Regras de jogo acionadas pela View
+    // ------------------------------------------------------------------
+
+    /** Clique do mouse sobre uma localidade do tabuleiro (única forma de mover o peão). */
+    public void localidadeClicada(String localidade, boolean moverKhan) {
+        if (localidade == null) {
+            return;
+        }
+        if (moverKhan) {
+            model().moverKhan(localidade);
+            return;
+        }
+        if (!model().moverJogadorDaVez(localidade)) {
             System.out.println("[DEBUG] Movimento recusado: passos insuficientes ou local desconectado.");
         }
     }
 
-    private void encerrarTurnoAtual() {
-        partida.passarTurno();
-        movimentosRestantes = 0;
-        atualizarInterface();
+    public void encerrarTurno() {
+        model().passarTurno();
     }
 
-    private void definirMovimentosTestador() {
-        Object item = view.getPainelControle().getComboMovimentos().getSelectedItem();
-        if (item instanceof Integer) {
-            movimentosRestantes = (Integer) item;
-            atualizarInterface();
-        }
+    public void definirMovimentos(int quantidade) {
+        model().definirMovimentos(quantidade);
     }
 
-    private void atualizarInterface() {
-        view.atualizarView(movimentosRestantes);
+    public boolean construirYurt() {
+        return model().construirYurtNaLocalizacaoAtual();
+    }
+
+    public boolean saquearCidade() {
+        return model().saquearCidadeNaLocalizacaoAtual();
+    }
+
+    public void coletarTributo(int indiceTipo, int quantidade) {
+        model().coletarTributoJogadorAtual(indiceTipo, quantidade);
+    }
+
+    public void exibirCartela() {
+        model().setExibirCartela(true);
+    }
+
+    public void fecharCartela() {
+        model().setExibirCartela(false);
+    }
+
+    public void exibirCartas() {
+        model().setExibirCartas(true);
+    }
+
+    public void fecharCartas() {
+        model().setExibirCartas(false);
+    }
+
+    public void exibirInventario() {
+        model().setExibirInventario(true);
+    }
+
+    public void fecharInventario() {
+        model().setExibirInventario(false);
+    }
+
+    public boolean salvarPartida() {
+        return model().salvar(ARQUIVO_SALVO);
+    }
+
+    // ------------------------------------------------------------------
+    // Dados textuais (nomes) - a View não acessa o Model diretamente
+    // ------------------------------------------------------------------
+
+    public String getNomeJogador(int indiceJogador) {
+        return model().getNomeJogadorPorIndice(indiceJogador);
+    }
+
+    public String getNomeCor(int ordinalCor) {
+        return Partida.getNomeCor(ordinalCor);
+    }
+
+    public String[] getNomesTributos() {
+        return Partida.getNomesTributos();
     }
 }

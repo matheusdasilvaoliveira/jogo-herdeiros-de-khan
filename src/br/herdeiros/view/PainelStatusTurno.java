@@ -1,8 +1,9 @@
 package br.herdeiros.view;
 
-import br.herdeiros.model.Cor;
-import br.herdeiros.model.Partida;
-import br.herdeiros.model.TipoTributo;
+import br.herdeiros.controller.JogoController;
+import br.herdeiros.observer.IndicesEstado;
+import br.herdeiros.observer.ObservadoIF;
+import br.herdeiros.observer.ObservadorIF;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -13,22 +14,41 @@ import java.awt.RenderingHints;
 import javax.swing.JPanel;
 
 /**
- * Painel informativo desenhado estritamente com Java2D indicando a cor do jogador da vez,
- * o herdeiro atual, a sua localização e o saldo de movimentos restantes no turno.
+ * Painel de status do turno (jogador da vez, posição, votos e movimentos restantes).
+ * Observador do Model: lê o estado exclusivamente via get(i) ao ser notificado.
  */
-public class PainelStatusTurno extends JPanel {
+public class PainelStatusTurno extends JPanel implements ObservadorIF {
 
-    private Partida partida;
+    private String nomeJogador = "Aguardando";
+    private String nomeCor = null;
+    private String localizacao = "-";
+    private int votos = 0;
     private int movimentosRestantes = 0;
 
-    public PainelStatusTurno(Partida partida) {
-        this.partida = partida;
+    public PainelStatusTurno() {
         setPreferredSize(new Dimension(270, 160));
         setBackground(Color.WHITE);
+        JogoController.getInstance().registra(this);
     }
 
-    public void atualizarStatus(int movimentosRestantes) {
-        this.movimentosRestantes = movimentosRestantes;
+    @Override
+    public void notify(ObservadoIF o) {
+        JogoController ctrl = JogoController.getInstance();
+        int vez = o.get(IndicesEstado.JOGADOR_DA_VEZ);
+        if (vez >= 0) {
+            String nome = ctrl.getNomeJogador(vez);
+            nomeJogador = nome != null ? nome : "Aguardando";
+            nomeCor = ctrl.getNomeCor(o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_COR)));
+            String loc = IndicesEstado.nomeLocalidade(o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_LOCALIDADE)));
+            localizacao = loc != null ? loc : "-";
+            votos = o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_VOTOS));
+        } else {
+            nomeJogador = "Aguardando";
+            nomeCor = null;
+            localizacao = "-";
+            votos = 0;
+        }
+        movimentosRestantes = o.get(IndicesEstado.MOVIMENTOS_RESTANTES);
         repaint();
     }
 
@@ -42,20 +62,12 @@ public class PainelStatusTurno extends JPanel {
         int w = getWidth();
         int h = getHeight();
 
-        Cor corAtual = (partida != null) ? partida.getCorJogadorAtual() : null;
-        Color awtCor = obterCorAwt(corAtual);
-
         // Faixa de cabeçalho colorida com a cor do jogador da vez
-        g2d.setColor(awtCor);
+        g2d.setColor(CoresView.obterCorAwt(nomeCor));
         g2d.fillRoundRect(0, 0, w, 40, 10, 10);
 
-        g2d.setColor(Color.WHITE);
-        if (corAtual == Cor.BRANCO || corAtual == Cor.AMARELO) {
-            g2d.setColor(Color.BLACK);
-        }
+        g2d.setColor(CoresView.usaTextoEscuro(nomeCor) ? Color.BLACK : Color.WHITE);
         g2d.setFont(new Font("Arial", Font.BOLD, 14));
-        String nomeJogador = (partida != null && partida.getNomeJogadorAtual() != null)
-                ? partida.getNomeJogadorAtual() : "Aguardando";
         g2d.drawString("Vez de: " + nomeJogador, 15, 25);
 
         // Corpo informativo do status
@@ -66,12 +78,7 @@ public class PainelStatusTurno extends JPanel {
 
         g2d.setColor(new Color(40, 40, 40));
         g2d.setFont(new Font("Arial", Font.PLAIN, 12));
-
-        String loc = (partida != null && partida.getLocalizacaoJogadorAtual() != null)
-                ? partida.getLocalizacaoJogadorAtual() : "-";
-        g2d.drawString("Posição atual: " + loc, 15, 70);
-
-        int votos = (partida != null) ? partida.getVotosJogadorAtual() : 0;
+        g2d.drawString("Posição atual: " + localizacao, 15, 70);
         g2d.drawString("Votos no Kurultai: " + votos, 15, 92);
 
         // Movimentos / Cavalos disponíveis para gastar no turno
@@ -87,19 +94,5 @@ public class PainelStatusTurno extends JPanel {
         g2d.setFont(new Font("Arial", Font.ITALIC, 10));
         g2d.setColor(Color.GRAY);
         g2d.drawString("(Cavalos da coluna ou Modo Testador)", 15, 145);
-    }
-
-    private Color obterCorAwt(Cor cor) {
-        if (cor == null) return new Color(100, 100, 100);
-        switch (cor) {
-            case AMARELO: return new Color(230, 190, 0);
-            case AZUL: return new Color(30, 144, 255);
-            case BRANCO: return new Color(240, 240, 240);
-            case LARANJA: return new Color(255, 140, 0);
-            case PRETO: return new Color(30, 30, 30);
-            case VERDE: return new Color(34, 139, 34);
-            case VERMELHO: return new Color(220, 20, 60);
-            default: return Color.GRAY;
-        }
     }
 }

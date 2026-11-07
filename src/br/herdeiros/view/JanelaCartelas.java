@@ -1,11 +1,12 @@
 package br.herdeiros.view;
 
-import br.herdeiros.model.Cor;
-import br.herdeiros.model.Partida;
+import br.herdeiros.controller.JogoController;
+import br.herdeiros.observer.IndicesEstado;
+import br.herdeiros.observer.ObservadoIF;
+import br.herdeiros.observer.ObservadorIF;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -13,6 +14,8 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,24 +31,31 @@ import javax.swing.border.EmptyBorder;
  * Janela para exibição estrita do tabuleiro individual (cartela) do jogador da vez.
  * Cada jogador só tem acesso à visualização da sua própria cartela no seu turno.
  * Desenhada com Graphics2D.drawImage() via Java2D.
+ *
+ * Observadora do Model: sua exibição (EXIBIR_CARTELA) e o jogador da vez são
+ * resgatados por get(i) ao receber notify.
  */
-public class JanelaCartelas extends JFrame {
+public class JanelaCartelas extends JFrame implements ObservadorIF {
 
-    private Partida partida;
     private Map<String, Image> cacheCartelasPorNome;
-    private Map<Cor, Image> cacheCartelasPorCor;
+    private Map<String, Image> cacheCartelasPorCor;
     private JLabel lblJogador;
     private PainelExibicaoCartela painelExibicao;
 
-    public JanelaCartelas(Partida partida) {
-        this.partida = partida;
+    public JanelaCartelas() {
         this.cacheCartelasPorNome = new HashMap<String, Image>();
-        this.cacheCartelasPorCor = new HashMap<Cor, Image>();
+        this.cacheCartelasPorCor = new HashMap<String, Image>();
 
         setTitle("Herdeiros de Khan - Meu Tabuleiro (Cartela)");
         setSize(950, 720);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                JogoController.getInstance().fecharCartela();
+            }
+        });
 
         carregarCartelas();
 
@@ -69,7 +79,7 @@ public class JanelaCartelas extends JFrame {
         btnFechar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JanelaCartelas.this.dispose();
+                JogoController.getInstance().fecharCartela();
             }
         });
 
@@ -81,18 +91,18 @@ public class JanelaCartelas extends JFrame {
         painelPrincipal.add(painelExibicao, BorderLayout.CENTER);
 
         add(painelPrincipal);
-        sincronizarComJogadorDaVez();
+        JogoController.getInstance().registra(this);
     }
 
     private void carregarCartelas() {
-        carregarPorNomeECor("altani", Cor.VERMELHO, "img/cartelas/cartela_altani.jpg");
-        carregarPorNomeECor("chagatai", Cor.AZUL, "img/cartelas/cartela_chagatai.jpg");
-        carregarPorNomeECor("jochi", Cor.VERDE, "img/cartelas/cartela_jochi.jpg");
-        carregarPorNomeECor("ogedei", Cor.AMARELO, "img/cartelas/cartela_ogedei.jpg");
-        carregarPorNomeECor("tolui", Cor.LARANJA, "img/cartelas/cartela_tolui.jpg");
+        carregarPorNomeECor("altani", "VERMELHO", "img/cartelas/cartela_altani.jpg");
+        carregarPorNomeECor("chagatai", "AZUL", "img/cartelas/cartela_chagatai.jpg");
+        carregarPorNomeECor("jochi", "VERDE", "img/cartelas/cartela_jochi.jpg");
+        carregarPorNomeECor("ogedei", "AMARELO", "img/cartelas/cartela_ogedei.jpg");
+        carregarPorNomeECor("tolui", "LARANJA", "img/cartelas/cartela_tolui.jpg");
     }
 
-    private void carregarPorNomeECor(String nomeHerdeiro, Cor cor, String caminho) {
+    private void carregarPorNomeECor(String nomeHerdeiro, String cor, String caminho) {
         try {
             File f = new File(caminho);
             if (f.exists()) {
@@ -107,23 +117,37 @@ public class JanelaCartelas extends JFrame {
         }
     }
 
-    public void sincronizarComJogadorDaVez() {
-        if (partida == null) return;
-        Cor corVez = partida.getCorJogadorAtual();
-        String nome = partida.getNomeJogadorAtual();
-        lblJogador.setText("Tabuleiro / Cartela de: " + nome + " (" + corVez + ")");
-        painelExibicao.setJogadorAtual(nome, corVez);
+    @Override
+    public void notify(ObservadoIF o) {
+        JogoController ctrl = JogoController.getInstance();
+        int vez = o.get(IndicesEstado.JOGADOR_DA_VEZ);
+        String nome = null;
+        String cor = null;
+        if (vez >= 0) {
+            nome = ctrl.getNomeJogador(vez);
+            cor = ctrl.getNomeCor(o.get(IndicesEstado.jogador(vez, IndicesEstado.CAMPO_COR)));
+        }
+        lblJogador.setText("Tabuleiro / Cartela de: " + nome + " (" + cor + ")");
+        painelExibicao.setJogadorAtual(nome, cor);
+
+        boolean exibir = o.get(IndicesEstado.EXIBIR_CARTELA) == 1;
+        if (exibir && !isVisible()) {
+            setVisible(true);
+            toFront();
+        } else if (!exibir && isVisible()) {
+            setVisible(false);
+        }
     }
 
     private class PainelExibicaoCartela extends JPanel {
         private String nomeHerdeiro;
-        private Cor corAtual;
+        private String corAtual;
 
         public PainelExibicaoCartela() {
             setBackground(new Color(230, 230, 235));
         }
 
-        public void setJogadorAtual(String nomeHerdeiro, Cor cor) {
+        public void setJogadorAtual(String nomeHerdeiro, String cor) {
             this.nomeHerdeiro = nomeHerdeiro;
             this.corAtual = cor;
             repaint();

@@ -5,7 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-class Peao {
+class Peao implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private Cor cor;
     private String localizacaoAtual; 
     private List<String> caminhoDoTurno;

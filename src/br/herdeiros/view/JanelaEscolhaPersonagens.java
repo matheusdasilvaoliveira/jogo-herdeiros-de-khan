@@ -1,6 +1,5 @@
 package br.herdeiros.view;
 
-import br.herdeiros.model.Cor;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -34,10 +33,10 @@ public class JanelaEscolhaPersonagens extends JFrame {
 
     public static class DadosJogadorConfig {
         public String nome;
-        public Cor cor;
+        public String cor; // nome da cor (resolvido pelo Controller); a View nao conhece o enum do Model
         public int descendentes;
 
-        public DadosJogadorConfig(String nome, Cor cor, int descendentes) {
+        public DadosJogadorConfig(String nome, String cor, int descendentes) {
             this.nome = nome;
             this.cor = cor;
             this.descendentes = descendentes;
@@ -56,7 +55,7 @@ public class JanelaEscolhaPersonagens extends JFrame {
 
     private static class LinhaJogador {
         JComboBox<String> comboNomeHerdeiro;
-        JComboBox<Cor> comboCor;
+        JComboBox<String> comboCor;
         JSpinner spinnerDescendentes;
     }
 
@@ -182,10 +181,10 @@ public class JanelaEscolhaPersonagens extends JFrame {
 
         // 5 Herdeiros oficiais do jogo
         final String[] herdeirosOficiais = {"Altani", "Chagatai", "Jochi", "Ogedei", "Tolui"};
-        Cor[] coresPadrao = {Cor.VERMELHO, Cor.AZUL, Cor.VERDE, Cor.AMARELO, Cor.LARANJA};
+        String[] coresPadrao = {"VERMELHO", "AZUL", "VERDE", "AMARELO", "LARANJA"};
         int[] descendentesPadrao = {4, 2, 5, 3, 1};
 
-        Cor[] todasCoresDisponiveis = {Cor.VERMELHO, Cor.AZUL, Cor.VERDE, Cor.AMARELO, Cor.LARANJA, Cor.PRETO};
+        String[] todasCoresDisponiveis = {"VERMELHO", "AZUL", "VERDE", "AMARELO", "LARANJA", "PRETO"};
 
         for (int i = 0; i < qtd; i++) {
             JPanel cardJogador = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 8));
@@ -203,7 +202,7 @@ public class JanelaEscolhaPersonagens extends JFrame {
             comboHerdeiro.setSelectedIndex(i % herdeirosOficiais.length);
             comboHerdeiro.setPreferredSize(new Dimension(130, 28));
 
-            JComboBox<Cor> comboCor = new JComboBox<Cor>(todasCoresDisponiveis);
+            JComboBox<String> comboCor = new JComboBox<String>(todasCoresDisponiveis);
             comboCor.setSelectedItem(coresPadrao[i % coresPadrao.length]);
             comboCor.setPreferredSize(new Dimension(110, 28));
 
@@ -232,7 +231,7 @@ public class JanelaEscolhaPersonagens extends JFrame {
 
     private void validarEConfirmar() {
         List<DadosJogadorConfig> listaFinal = new ArrayList<DadosJogadorConfig>();
-        Set<Cor> coresEscolhidas = new HashSet<Cor>();
+        Set<String> coresEscolhidas = new HashSet<String>();
         Set<String> herdeirosEscolhidos = new HashSet<String>();
 
         for (int i = 0; i < linhasJogadores.size(); i++) {
@@ -246,7 +245,7 @@ public class JanelaEscolhaPersonagens extends JFrame {
             }
             herdeirosEscolhidos.add(nome);
 
-            Cor cor = (Cor) linha.comboCor.getSelectedItem();
+            String cor = (String) linha.comboCor.getSelectedItem();
             if (coresEscolhidas.contains(cor)) {
                 JOptionPane.showMessageDialog(this,
                         "Cada jogador deve escolher uma cor única para seu peão. Cor repetida: " + cor,

@@ -2,7 +2,8 @@ package br.herdeiros.model;
 
 import java.util.Objects;
 
-class Cidade {
+class Cidade implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private NomeCidade nome;
     private Regiao regiao;
     private int quantidadeTesouros;

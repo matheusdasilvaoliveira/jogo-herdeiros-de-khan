@@ -1,8 +1,9 @@
 package br.herdeiros.view;
 
-import br.herdeiros.model.Cor;
-import br.herdeiros.model.NomeCidade;
-import br.herdeiros.model.Partida;
+import br.herdeiros.controller.JogoController;
+import br.herdeiros.observer.IndicesEstado;
+import br.herdeiros.observer.ObservadoIF;
+import br.herdeiros.observer.ObservadorIF;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -23,33 +24,63 @@ import javax.swing.JPanel;
 /**
  * Painel responsável por renderizar o tabuleiro, cidades, tesouros e peões
  * OBRIGATORIAMENTE via Java2D (Graphics2D.drawImage), sem componentes JLabel/JButton.
+ *
+ * Observador do Model: ao receber notify, resgata as posições dos peões e os tesouros
+ * das cidades através de get(i) e se redesenha. A movimentação do peão é feita
+ * exclusivamente por clique do mouse sobre a localidade de destino.
  */
-public class PainelTabuleiro extends JPanel {
+public class PainelTabuleiro extends JPanel implements ObservadorIF {
 
-    private Partida partida;
+    private static final int QTD_CIDADES_MAX = IndicesEstado.LOCALIDADES.length;
+
     private Image imagemTabuleiro;
-    private Map<Cor, Image> imagensPeoes;
-    private OuvinteCliqueTabuleiro ouvinteClique;
+    private Map<String, Image> imagensPeoes;
+    private boolean modoMoverKhan = false;
 
-    public interface OuvinteCliqueTabuleiro {
-        void aoClicarNoTabuleiro(int x, int y);
-    }
+    // Estado resgatado do observado (via get)
+    private int qtdJogadores = 0;
+    private int[] corJogador = new int[0];
+    private int[] localJogador = new int[0];
+    private int[] tesourosCidade = new int[QTD_CIDADES_MAX];
+    private int[] localCidade = new int[QTD_CIDADES_MAX];
+    private int localKhan = -1;
 
-    public PainelTabuleiro(Partida partida) {
-        this.partida = partida;
-        this.imagensPeoes = new HashMap<Cor, Image>();
-
+    public PainelTabuleiro() {
+        this.imagensPeoes = new HashMap<String, Image>();
         carregarImagens();
 
         // Tratamento de eventos de clique do mouse SEM expressao lambda (requisito formal)
         this.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (ouvinteClique != null) {
-                    ouvinteClique.aoClicarNoTabuleiro(e.getX(), e.getY());
-                }
+                String destino = MapaCoordenadas.identificarLocalizacaoClicada(
+                        e.getX(), e.getY(), getWidth(), getHeight());
+                JogoController.getInstance().localidadeClicada(destino, modoMoverKhan);
             }
         });
+
+        JogoController.getInstance().registra(this);
+    }
+
+    public void setModoMoverKhan(boolean ativo) {
+        this.modoMoverKhan = ativo;
+    }
+
+    @Override
+    public void notify(ObservadoIF o) {
+        qtdJogadores = Math.max(0, o.get(IndicesEstado.QTD_JOGADORES));
+        corJogador = new int[qtdJogadores];
+        localJogador = new int[qtdJogadores];
+        for (int j = 0; j < qtdJogadores; j++) {
+            corJogador[j] = o.get(IndicesEstado.jogador(j, IndicesEstado.CAMPO_COR));
+            localJogador[j] = o.get(IndicesEstado.jogador(j, IndicesEstado.CAMPO_LOCALIDADE));
+        }
+        for (int c = 0; c < QTD_CIDADES_MAX; c++) {
+            tesourosCidade[c] = o.get(IndicesEstado.cidade(c, IndicesEstado.CAMPO_TESOUROS));
+            localCidade[c] = o.get(IndicesEstado.cidade(c, IndicesEstado.CAMPO_LOCALIDADE_CIDADE));
+        }
+        localKhan = o.get(IndicesEstado.LOCALIDADE_KHAN);
+        repaint();
     }
 
     private void carregarImagens() {
@@ -59,16 +90,13 @@ public class PainelTabuleiro extends JPanel {
             System.err.println("Erro ao carregar a imagem do tabuleiro: " + e.getMessage());
         }
 
-        carregarPeao(Cor.AMARELO, "img/peoes/peao_amarelo.png");
-        carregarPeao(Cor.AZUL, "img/peoes/peao_azul.png");
-        carregarPeao(Cor.BRANCO, "img/peoes/peao_branco.png");
-        carregarPeao(Cor.LARANJA, "img/peoes/peao_laranja.png");
-        carregarPeao(Cor.PRETO, "img/peoes/peao_preto.png");
-        carregarPeao(Cor.VERDE, "img/peoes/peao_verde.png");
-        carregarPeao(Cor.VERMELHO, "img/peoes/peao_vermelho.png");
+        String[] cores = {"AMARELO", "AZUL", "BRANCO", "LARANJA", "PRETO", "VERDE", "VERMELHO"};
+        for (String cor : cores) {
+            carregarPeao(cor, "img/peoes/peao_" + cor.toLowerCase() + ".png");
+        }
     }
 
-    private void carregarPeao(Cor cor, String caminho) {
+    private void carregarPeao(String cor, String caminho) {
         try {
             File f = new File(caminho);
             if (f.exists()) {
@@ -77,10 +105,6 @@ public class PainelTabuleiro extends JPanel {
         } catch (IOException e) {
             System.err.println("Erro ao carregar imagem do peão " + cor + ": " + e.getMessage());
         }
-    }
-
-    public void setOuvinteClique(OuvinteCliqueTabuleiro ouvinte) {
-        this.ouvinteClique = ouvinte;
     }
 
     @Override
@@ -99,78 +123,67 @@ public class PainelTabuleiro extends JPanel {
             g2d.drawImage(imagemTabuleiro, 0, 0, largura, altura, this);
         }
 
-        if (partida == null) {
-            return;
-        }
-
         // 2. Destaca cidades reveladas/disponíveis no tabuleiro com tesouros
         desenharCidadesDisponiveis(g2d, largura, altura);
 
-        // 3. Desenha os peões dos jogadores usando Graphics2D.drawImage
+        // 3. Desenha o peão do Khan e os peões dos jogadores usando Graphics2D
+        desenharKhan(g2d, largura, altura);
         desenharPeoes(g2d, largura, altura);
     }
 
     private void desenharCidadesDisponiveis(Graphics2D g2d, int largura, int altura) {
         g2d.setFont(new Font("Arial", Font.BOLD, 12));
-        for (NomeCidade nc : NomeCidade.values()) {
-            if (partida.isCidadeDisponivel(nc)) {
-                Point p = MapaCoordenadas.getCoordenadaTela(nc.getNomeFormatado(), largura, altura);
-                if (p != null) {
-                    int tesouros = partida.getTesourosCidade(nc);
-                    g2d.setColor(new Color(255, 215, 0, 220));
-                    g2d.fillRoundRect(p.x - 30, p.y + 20, 60, 20, 8, 8);
-                    g2d.setColor(Color.BLACK);
-                    g2d.drawRoundRect(p.x - 30, p.y + 20, 60, 20, 8, 8);
-                    g2d.drawString("Tes: " + tesouros, p.x - 22, p.y + 35);
-                }
+        for (int c = 0; c < QTD_CIDADES_MAX; c++) {
+            if (tesourosCidade[c] < 0) continue; // cidade não disponível
+            String nome = IndicesEstado.nomeLocalidade(localCidade[c]);
+            Point p = MapaCoordenadas.getCoordenadaTela(nome, largura, altura);
+            if (p != null) {
+                g2d.setColor(new Color(255, 215, 0, 220));
+                g2d.fillRoundRect(p.x - 30, p.y + 20, 60, 20, 8, 8);
+                g2d.setColor(Color.BLACK);
+                g2d.drawRoundRect(p.x - 30, p.y + 20, 60, 20, 8, 8);
+                g2d.drawString("Tes: " + tesourosCidade[c], p.x - 22, p.y + 35);
             }
         }
+    }
+
+    private void desenharKhan(Graphics2D g2d, int largura, int altura) {
+        Point p = MapaCoordenadas.getCoordenadaTela(IndicesEstado.nomeLocalidade(localKhan), largura, altura);
+        if (p == null) return;
+        int t = 30;
+        g2d.setColor(new Color(120, 0, 0));
+        g2d.fillRect(p.x - t / 2, p.y - t - 20, t, t);
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Arial", Font.BOLD, 14));
+        g2d.drawString("K", p.x - 5, p.y - 20 - t / 2 + 5);
     }
 
     private void desenharPeoes(Graphics2D g2d, int largura, int altura) {
         int tamanhoPeao = 36;
         int raioOffset = 18;
 
-        int indice = 0;
-        for (Cor cor : partida.getCoresJogadores()) {
-            String loc = partida.getLocalizacaoJogador(cor);
-            if (loc != null) {
-                Point p = MapaCoordenadas.getCoordenadaTela(loc, largura, altura);
-                if (p != null) {
-                    // Distribui os peões ligeiramente para não ficarem sobrepostos na mesma casa
-                    int offsetX = (int) (raioOffset * Math.cos(indice * (2 * Math.PI / 4)));
-                    int offsetY = (int) (raioOffset * Math.sin(indice * (2 * Math.PI / 4)));
+        for (int j = 0; j < qtdJogadores; j++) {
+            String loc = IndicesEstado.nomeLocalidade(localJogador[j]);
+            Point p = MapaCoordenadas.getCoordenadaTela(loc, largura, altura);
+            if (p == null) continue;
 
-                    Image imgPeao = imagensPeoes.get(cor);
-                    int xPeao = p.x + offsetX - (tamanhoPeao / 2);
-                    int yPeao = p.y + offsetY - (tamanhoPeao / 2);
+            // Distribui os peões ligeiramente para não ficarem sobrepostos na mesma casa
+            int offsetX = (int) (raioOffset * Math.cos(j * (2 * Math.PI / 4)));
+            int offsetY = (int) (raioOffset * Math.sin(j * (2 * Math.PI / 4)));
+            int xPeao = p.x + offsetX - (tamanhoPeao / 2);
+            int yPeao = p.y + offsetY - (tamanhoPeao / 2);
 
-                    if (imgPeao != null) {
-                        g2d.drawImage(imgPeao, xPeao, yPeao, tamanhoPeao, tamanhoPeao, this);
-                    } else {
-                        // Fallback em caso de imagem ausente
-                        g2d.setColor(obterCorAwt(cor));
-                        g2d.fillOval(xPeao, yPeao, tamanhoPeao, tamanhoPeao);
-                        g2d.setColor(Color.BLACK);
-                        g2d.drawOval(xPeao, yPeao, tamanhoPeao, tamanhoPeao);
-                    }
-                }
+            String nomeCor = JogoController.getInstance().getNomeCor(corJogador[j]);
+            Image imgPeao = imagensPeoes.get(nomeCor);
+            if (imgPeao != null) {
+                g2d.drawImage(imgPeao, xPeao, yPeao, tamanhoPeao, tamanhoPeao, this);
+            } else {
+                // Fallback em caso de imagem ausente
+                g2d.setColor(CoresView.obterCorAwt(nomeCor));
+                g2d.fillOval(xPeao, yPeao, tamanhoPeao, tamanhoPeao);
+                g2d.setColor(Color.BLACK);
+                g2d.drawOval(xPeao, yPeao, tamanhoPeao, tamanhoPeao);
             }
-            indice++;
-        }
-    }
-
-    private Color obterCorAwt(Cor cor) {
-        if (cor == null) return Color.GRAY;
-        switch (cor) {
-            case AMARELO: return Color.YELLOW;
-            case AZUL: return new Color(30, 144, 255);
-            case BRANCO: return Color.WHITE;
-            case LARANJA: return Color.ORANGE;
-            case PRETO: return Color.BLACK;
-            case VERDE: return new Color(34, 139, 34);
-            case VERMELHO: return new Color(220, 20, 60);
-            default: return Color.GRAY;
         }
     }
 }
