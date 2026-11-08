@@ -4,12 +4,6 @@ import br.herdeiros.observer.IndicesEstado;
 import br.herdeiros.observer.ObservadoIF;
 import br.herdeiros.observer.ObservadorIF;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,9 +21,7 @@ import java.util.Set;
  *  - Observer: é o objeto observado ({@link ObservadoIF}); a cada mudança de estado chama
  *    notify(this) nos observadores, que leem o estado por get(i) (ver {@link IndicesEstado}).
  */
-public class Partida implements ObservadoIF, Serializable {
-    private static final long serialVersionUID = 1L;
-
+public class Partida implements ObservadoIF {
     private static Partida instancia;
 
     private Map<Cor, Jogador> jogadores;
@@ -41,11 +33,11 @@ public class Partida implements ObservadoIF, Serializable {
     private int movimentosRestantes;
 
     // Estado de exibição das janelas (refletido nas Views via Observer)
-    private transient boolean exibirCartela;
-    private transient boolean exibirCartas;
-    private transient boolean exibirInventario;
+    private boolean exibirCartela;
+    private boolean exibirCartas;
+    private boolean exibirInventario;
 
-    private transient List<ObservadorIF> observadores = new ArrayList<ObservadorIF>();
+    private List<ObservadorIF> observadores = new ArrayList<ObservadorIF>();
 
     /** Construtor restrito ao pacote (Singleton). Visível ao pacote apenas para testes unitários. */
     Partida() {
@@ -252,44 +244,6 @@ public class Partida implements ObservadoIF, Serializable {
     public void setExibirInventario(boolean exibir) {
         this.exibirInventario = exibir;
         notificarObservadores();
-    }
-
-    // --- Persistência (salvar / continuar jogo) ---
-
-    public boolean salvar(String caminho) {
-        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(caminho))) {
-            out.writeObject(this);
-            return true;
-        } catch (IOException e) {
-            System.err.println("Erro ao salvar partida: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean carregar(String caminho) {
-        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(caminho))) {
-            Partida salva = (Partida) in.readObject();
-            this.jogadores = salva.jogadores;
-            this.ordemTurnos = salva.ordemTurnos;
-            this.indiceTurnoAtual = salva.indiceTurnoAtual;
-            this.tabuleiro = salva.tabuleiro;
-            this.baralho = salva.baralho;
-            this.jogadorAtual = salva.jogadorAtual;
-            this.movimentosRestantes = salva.movimentosRestantes;
-            this.exibirCartela = false;
-            this.exibirCartas = false;
-            this.exibirInventario = false;
-            notificarObservadores();
-            return true;
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Erro ao carregar partida: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
-        in.defaultReadObject();
-        this.observadores = new ArrayList<ObservadorIF>();
     }
 
     /**

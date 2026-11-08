@@ -14,15 +14,16 @@ import javax.swing.JOptionPane;
  *
  * Único responsável por organizar a sequência de eventos da partida:
  * menu inicial -> escolha de personagens -> partida (ou carregar jogo salvo).
- * A View aciona as regras chamando JogoController.getInstance().xxx(), e o Controller
- * repassa para a fachada do Model (Partida.getInstance()). As Views se registram como
- * observadoras do Model exclusivamente através de {@link #registra(ObservadorIF)}.
+ * A View aciona as regras chamando JogoController.getInstance().xxx(), e o
+ * Controller
+ * repassa para a fachada do Model (Partida.getInstance()). As Views se
+ * registram como
+ * observadoras do Model exclusivamente através de
+ * {@link #registra(ObservadorIF)}.
  *
  * SEM uso de expressões lambda em listeners (regra obrigatória da disciplina).
  */
 public class JogoController {
-
-    private static final String ARQUIVO_SALVO = "partida_salva.dat";
 
     private static JogoController instancia;
 
@@ -75,14 +76,10 @@ public class JogoController {
 
             @Override
             public void aoContinuarJogoSalvo() {
-                if (model().carregar(ARQUIVO_SALVO)) {
-                    refMenu[0].dispose();
-                    abrirJanelaPrincipal();
-                } else {
-                    JOptionPane.showMessageDialog(refMenu[0],
-                            "Nenhuma partida salva foi encontrada.",
-                            "Continuar Jogo Salvo", JOptionPane.INFORMATION_MESSAGE);
-                }
+                JOptionPane.showMessageDialog(
+                        refMenu[0],
+                        "No futuro colocaremos essa funcao",
+                        JOptionPane.INFORMATION_MESSAGE);
             }
         });
         refMenu[0].exibir();
@@ -128,7 +125,10 @@ public class JogoController {
     // Regras de jogo acionadas pela View
     // ------------------------------------------------------------------
 
-    /** Clique do mouse sobre uma localidade do tabuleiro (única forma de mover o peão). */
+    /**
+     * Clique do mouse sobre uma localidade do tabuleiro (única forma de mover o
+     * peão).
+     */
     public void localidadeClicada(String localidade, boolean moverKhan) {
         if (localidade == null) {
             return;
@@ -184,10 +184,6 @@ public class JogoController {
 
     public void fecharInventario() {
         model().setExibirInventario(false);
-    }
-
-    public boolean salvarPartida() {
-        return model().salvar(ARQUIVO_SALVO);
     }
 
     // ------------------------------------------------------------------

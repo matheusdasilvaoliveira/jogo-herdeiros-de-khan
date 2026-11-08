@@ -167,17 +167,6 @@ public class PainelControle extends JPanel {
         painelTestador.add(btnDefinirMovimentos);
         painelTestador.add(chkKhan);
         add(painelTestador);
-
-        // 6. Salvar partida
-        JButton btnSalvar = criarBotao("Salvar Jogo", new Color(127, 140, 141), 32, 12);
-        btnSalvar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                boolean ok = JogoController.getInstance().salvarPartida();
-                avisar(ok ? "Partida salva com sucesso." : "Erro ao salvar a partida.");
-            }
-        });
-        add(btnSalvar);
     }
 
     private JButton criarBotao(String texto, Color fundo, int altura, int tamanhoFonte) {

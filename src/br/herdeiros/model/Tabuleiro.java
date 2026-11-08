@@ -7,8 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class Tabuleiro implements java.io.Serializable {
-    private static final long serialVersionUID = 1L;
+class Tabuleiro {
     private Peao peaoDoKhan;
     private Map<NomeCidade, Cidade> cidadesDisponiveis; 
     private Map<String, Set<String>> rotas;

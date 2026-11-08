@@ -6,8 +6,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
-class BaralhoDeCidades implements java.io.Serializable {
-    private static final long serialVersionUID = 1L;
+class BaralhoDeCidades {
     private Deque<Cidade> pilha;
 
     public BaralhoDeCidades() {
